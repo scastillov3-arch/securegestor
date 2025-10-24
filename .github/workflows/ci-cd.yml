@@ -13,16 +13,14 @@ jobs:
       postgres:
         image: postgres:14
         env:
-          POSTGRES_DB: ${{ secrets.DB_NAME }}
-          POSTGRES_USER: ${{ secrets.DB_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.DB_PASS }}
+          POSTGRES_DB: securegestor
+          POSTGRES_USER: securegestor_user
+          POSTGRES_PASSWORD: S3cur3G3st0r_2025!
         ports:
           - 5432:5432
-        options: >-
-          --health-interval 5s --health-timeout 5s --health-retries 5
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -35,17 +33,17 @@ jobs:
 
       - name: Wait for Postgres
         run: |
-          echo "Waiting for Postgres to be ready..."
-          until pg_isready -h localhost -p 5432; do
-            sleep 1
+          until pg_isready -h localhost -p 5432 -U securegestor_user; do
+            echo "Esperando a Postgres..."
+            sleep 2
           done
 
-      - name: Sync database and run tests
+      - name: Run tests
         env:
           DB_HOST: localhost
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASS: ${{ secrets.DB_PASS }}
+          DB_NAME: securegestor
+          DB_USER: securegestor_user
+          DB_PASS: S3cur3G3st0r_2025!
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           node -e "require('./src/models').sequelize.sync().then(()=>console.log('DB synced')).catch(e=>{console.error(e); process.exit(1)})"
@@ -63,15 +61,12 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
-
-      - name: Build project
+      - name: Autobuild
         run: npm install
-
       - name: Analyze
         uses: github/codeql-action/analyze@v3
 
