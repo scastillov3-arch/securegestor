@@ -5,13 +5,13 @@ services:
     environment:
       POSTGRES_DB: securegestor
       POSTGRES_USER: securegestor_user
-      POSTGRES_PASSWORD: changeme
+      POSTGRES_PASSWORD: S3cur3G3st0r_2025!
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U securgestor_user -d securegestor"]
+      test: ["CMD-SHELL", "pg_isready -U securegestor_user -d securegestor"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,8 +22,8 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: securegestor
-      DB_USER: securgestor_user
-      DB_PASS: changeme
+      DB_USER: securegestor_user
+      DB_PASS: S3cur3G3st0r_2025!
       JWT_SECRET: change_this_to_a_strong_secret
     depends_on:
       postgres:
