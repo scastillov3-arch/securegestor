@@ -18,9 +18,11 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.DB_PASS }}
         ports:
           - 5432:5432
+        options: >-
+          --health-interval 5s --health-timeout 5s --health-retries 5
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -33,14 +35,12 @@ jobs:
 
       - name: Wait for Postgres
         run: |
-          echo "Esperando a que Postgres esté listo..."
-          for i in $(seq 1 60); do
-            pg_isready -h localhost -p 5432 -U ${{ secrets.DB_USER }} && break
-            echo "Postgres no listo, reintentando..."
+          echo "Waiting for Postgres to be ready..."
+          until pg_isready -h localhost -p 5432; do
             sleep 1
           done
 
-      - name: Run tests
+      - name: Sync database and run tests
         env:
           DB_HOST: localhost
           DB_NAME: ${{ secrets.DB_NAME }}
@@ -63,11 +63,15 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+
+      - name: Build project
+        run: npm install
+
       - name: Analyze
         uses: github/codeql-action/analyze@v3
+
