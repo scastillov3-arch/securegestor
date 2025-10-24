@@ -9,7 +9,6 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:14
@@ -19,8 +18,8 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.DB_PASS }}
         ports:
           - 5432:5432
-        # Quitamos health-cmd porque no soporta secrets directamente
         options: >-
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
@@ -37,10 +36,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Wait for Postgres to be ready
+      - name: Wait for Postgres
         run: |
-          for i in $(seq 1 30); do
-            pg_isready -h localhost -U ${{ secrets.DB_USER }} && break || sleep 1
+          echo "Esperando a que Postgres esté listo..."
+          for i in $(seq 1 60); do
+            pg_isready -h localhost -p 5432 -U ${{ secrets.DB_USER }} && break
+            echo "Postgres no listo, reintentando..."
+            sleep 1
           done
 
       - name: Run tests
@@ -51,8 +53,9 @@ jobs:
           DB_PASS: ${{ secrets.DB_PASS }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          # Sincroniza la DB y ejecuta tests
+          echo "Sincronizando DB..."
           node -e "require('./src/models').sequelize.sync().then(()=>console.log('DB synced')).catch(e=>{console.error(e); process.exit(1)})"
+          echo "Ejecutando tests..."
           npm test
 
       - name: Run npm audit
@@ -67,11 +70,14 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
+
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: javascript
+
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v3
+
       - name: Analyze
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
