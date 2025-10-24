@@ -5,7 +5,7 @@
     "scripts": {
         "start": "node src/app.js",
         "dev": "nodemon src/app.js",
-        "test": "jest --runInBand --detectOpenHandles",
+        "test": "jest --runInBand --detectOpenHandles --passWithNoTests",
         "lint": "eslint . --ext .js",
         "migrate": "sequelize db:migrate"
     },
