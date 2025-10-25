@@ -1,6 +1,21 @@
-version: '3.8'
+version: '3.9'
 
 services:
+  db:
+    image: postgres:14
+    container_name: securegestor_db
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build: .
     container_name: securegestor_app
@@ -12,28 +27,9 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
-      DB_PORT: 55432
       JWT_SECRET: ${JWT_SECRET}
-    ports:
-      - "3000:3000"
-
-  db:
-    image: postgres:14
-    container_name: securegestor_db
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASS}
-      POSTGRES_PORT: 55432
-    ports:
-      - "55432:55432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -p 55432"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    command: ["npm", "start"]
 
 volumes:
   pgdata:
+
