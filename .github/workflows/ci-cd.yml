@@ -1,4 +1,4 @@
-name: CI - SecureGestor
+name: CI/CD - SecureGestor
 
 on:
   push:
@@ -7,23 +7,23 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-test:
+  build-test-deploy:
     runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:14
         env:
-          POSTGRES_DB: securegestor
-          POSTGRES_USER: securegestor_user
-          POSTGRES_PASSWORD: S3cur3G3st0r_2025!
+          POSTGRES_DB: ${{ secrets.DB_NAME }}
+          POSTGRES_USER: ${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASS }}
         ports:
           - 5432:5432
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 18
         uses: actions/setup-node@v4
         with:
           node-version: '18'
@@ -31,26 +31,60 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Wait for Postgres
+      - name: Wait for Postgres to be ready
         run: |
-          until pg_isready -h localhost -p 5432 -U securegestor_user; do
-            echo "Esperando a Postgres..."
-            sleep 2
+          echo "Waiting for Postgres..."
+          for i in $(seq 1 60); do
+            pg_isready -h localhost -p 5432 && break || (echo "Retrying..."; sleep 2)
           done
+
+      - name: Sync database (sequelize.sync)
+        env:
+          DB_HOST: localhost
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          node -e "require('./src/models').sequelize.sync().then(()=>console.log('DB synced')).catch(e=>{console.error(e); process.exit(1)})"
 
       - name: Run tests
         env:
           DB_HOST: localhost
-          DB_NAME: securegestor
-          DB_USER: securegestor_user
-          DB_PASS: S3cur3G3st0r_2025!
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: |
-          node -e "require('./src/models').sequelize.sync().then(()=>console.log('DB synced')).catch(e=>{console.error(e); process.exit(1)})"
-          npm test
+        run: npm test
 
       - name: Run npm audit
         run: npm audit --audit-level=moderate || true
+
+      - name: Build Docker image
+        run: docker build -t securegestor:latest .
+
+      - name: Prepare .env for docker-compose deploy
+        run: |
+          cat > .env.ci <<EOF
+          DB_HOST=postgres
+          DB_PORT=5432
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASS=${{ secrets.DB_PASS }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          PORT=3000
+          NODE_ENV=production
+          EOF
+        shell: bash
+
+      - name: Deploy to local staging (Docker Compose)
+        run: |
+          # use .env.ci as env file for docker-compose to avoid leaking secrets in logs
+          mv .env.ci .env
+          docker-compose down || true
+          docker-compose up -d --build
+          docker-compose ps
+        shell: bash
 
   codeql:
     name: CodeQL Analysis
@@ -61,12 +95,14 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
-      - name: Autobuild
-        run: npm install
+
+      - name: Build project for CodeQL
+        run: npm ci
+
       - name: Analyze
         uses: github/codeql-action/analyze@v3
-
