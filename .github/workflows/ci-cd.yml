@@ -66,7 +66,7 @@ jobs:
       - name: Prepare .env for docker-compose deploy
         run: |
           cat > .env.ci <<EOF
-          DB_HOST=postgres
+          DB_HOST=${{ secrets.DB_HOST }}
           DB_PORT=5432
           DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
@@ -77,13 +77,30 @@ jobs:
           EOF
         shell: bash
 
+      - name: Install Docker Compose (required on runner)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+        shell: bash
+
       - name: Deploy to local staging (Docker Compose)
         run: |
-          # use .env.ci as env file for docker-compose to avoid leaking secrets in logs
+          # move the CI env file into place (docker-compose reads .env)
           mv .env.ci .env
           docker-compose down || true
           docker-compose up -d --build
           docker-compose ps
+        shell: bash
+
+      - name: Show app logs (last 200 lines)
+        run: |
+          APP_CID=$(docker ps -q -f "ancestor=securegestor:latest" | head -n1)
+          if [ -n "$APP_CID" ]; then
+            echo "---- App logs ----"
+            docker logs "$APP_CID" --tail 200 || true
+          else
+            echo "App container not found."
+          fi
         shell: bash
 
   codeql:
